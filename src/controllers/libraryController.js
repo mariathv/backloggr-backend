@@ -1,28 +1,117 @@
 const db = require("../../config/database");
+const igdbService = require("../services/igdbService");
 const { sendSuccess } = require("../utils/response");
-const { ValidationError, NotFoundError, ConflictError } = require("../utils/errors");
+const {
+  ValidationError,
+  NotFoundError,
+  ConflictError,
+} = require("../utils/errors");
 
 const getUserLibrary = async (req, res, next) => {
   try {
-    const { status, limit = 50, offset = 0 } = req.query;
+    const { status, search, limit = 50, offset = 0 } = req.query;
     const userId = req.user.userId;
 
-    let query = "SELECT * FROM user_games WHERE user_id = ?";
+    let query = `
+      SELECT ug.* 
+      FROM user_games ug
+      LEFT JOIN game_cache gc ON ug.igdb_game_id = gc.igdb_game_id
+      WHERE ug.user_id = ?
+    `;
     const params = [userId];
 
+    // Add status filter
     if (status) {
-      query += " AND status = ?";
+      query += " AND ug.status = ?";
       params.push(status);
     }
 
-    query += " ORDER BY updated_at DESC LIMIT ? OFFSET ?";
+    // Add search filter
+    if (search && search.trim() !== "") {
+      query += " AND gc.game_data LIKE ?";
+      params.push(`%${search.trim()}%`);
+    }
+
+    query += " ORDER BY ug.updated_at DESC LIMIT ? OFFSET ?";
     params.push(parseInt(limit), parseInt(offset));
 
     const [games] = await db.query(query, params);
 
+    // Get total count for the filtered results
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM user_games ug
+      LEFT JOIN game_cache gc ON ug.igdb_game_id = gc.igdb_game_id
+      WHERE ug.user_id = ?
+    `;
+    const countParams = [userId];
+
+    if (status) {
+      countQuery += " AND ug.status = ?";
+      countParams.push(status);
+    }
+
+    if (search && search.trim() !== "") {
+      countQuery += " AND gc.game_data LIKE ?";
+      countParams.push(`%${search.trim()}%`);
+    }
+
+    const [countResult] = await db.query(countQuery, countParams);
+    const totalCount = countResult[0].total;
+
+    // Fetch game details for each game in the library
+    const gamesWithDetails = await Promise.all(
+      games.map(async (game) => {
+        try {
+          // Check cache first
+          const [cached] = await db.query(
+            "SELECT game_data FROM game_cache WHERE igdb_game_id = ?",
+            [game.igdb_game_id]
+          );
+
+          let gameDetails = null;
+
+          if (cached.length > 0) {
+            gameDetails = JSON.parse(cached[0].game_data);
+          } else {
+            // Fetch from IGDB if not cached
+            gameDetails = await igdbService.getGameById(game.igdb_game_id);
+
+            // Cache the result if found
+            if (gameDetails) {
+              await db.query(
+                "INSERT INTO game_cache (igdb_game_id, game_data) VALUES (?, ?) ON DUPLICATE KEY UPDATE game_data = ?, cached_at = CURRENT_TIMESTAMP",
+                [
+                  game.igdb_game_id,
+                  JSON.stringify(gameDetails),
+                  JSON.stringify(gameDetails),
+                ]
+              );
+            }
+          }
+
+          return {
+            ...game,
+            game_details: gameDetails,
+          };
+        } catch (error) {
+          // If fetching game details fails, return the game without details
+          console.error(
+            `Failed to fetch details for game ${game.igdb_game_id}:`,
+            error.message
+          );
+          return {
+            ...game,
+            game_details: null,
+          };
+        }
+      })
+    );
+
     sendSuccess(res, {
-      games,
-      count: games.length,
+      games: gamesWithDetails,
+      count: gamesWithDetails.length,
+      total: totalCount,
       limit: parseInt(limit),
       offset: parseInt(offset),
     });
@@ -131,7 +220,10 @@ const updateGameInLibrary = async (req, res, next) => {
     }
 
     // Validate rating if provided
-    if (updates.rating !== undefined && (updates.rating < 0 || updates.rating > 10)) {
+    if (
+      updates.rating !== undefined &&
+      (updates.rating < 0 || updates.rating > 10)
+    ) {
       throw new ValidationError("Rating must be between 0 and 10");
     }
 
@@ -218,6 +310,3 @@ module.exports = {
   updateGameInLibrary,
   deleteGameFromLibrary,
 };
-
-
-
