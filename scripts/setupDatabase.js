@@ -76,6 +76,19 @@ const setupDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
+    // User screenshots table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS user_screenshots (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        igdb_game_id INT NOT NULL,
+        filename VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_game_screenshots (igdb_game_id, user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     console.log("Database setup completed successfully!");
   } catch (error) {
     console.error("Error setting up database:", error);

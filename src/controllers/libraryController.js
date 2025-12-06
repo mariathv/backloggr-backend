@@ -304,9 +304,138 @@ async function updateUserStatistics(userId) {
   );
 }
 
+const getLibraryGameDetails = async (req, res, next) => {
+  try {
+    const { gameId } = req.params;
+    const userId = req.user.userId;
+
+    // 1. Fetch user game entry
+    const [userGame] = await db.query(
+      `SELECT ug.* 
+       FROM user_games ug
+       WHERE ug.user_id = ? AND ug.id = ?`,
+      [userId, gameId]
+    );
+
+    if (userGame.length === 0) {
+      throw new NotFoundError("Game not found in your library");
+    }
+
+    const game = userGame[0];
+
+    // 2. Fetch details from cache/IGDB
+    // Check cache first
+    const [cached] = await db.query(
+      "SELECT game_data FROM game_cache WHERE igdb_game_id = ?",
+      [game.igdb_game_id]
+    );
+
+    let gameDetails = null;
+
+    if (cached.length > 0) {
+      gameDetails = JSON.parse(cached[0].game_data);
+    } else {
+      // Fetch from IGDB if not cached
+      gameDetails = await igdbService.getGameById(game.igdb_game_id);
+
+      // Cache the result if found
+      if (gameDetails) {
+        await db.query(
+          "INSERT INTO game_cache (igdb_game_id, game_data) VALUES (?, ?) ON DUPLICATE KEY UPDATE game_data = ?, cached_at = CURRENT_TIMESTAMP",
+          [
+            game.igdb_game_id,
+            JSON.stringify(gameDetails),
+            JSON.stringify(gameDetails),
+          ]
+        );
+      }
+    }
+
+    // 3. Fetch user uploaded screenshots
+    const [screenshots] = await db.query(
+      "SELECT id, filename, created_at FROM user_screenshots WHERE user_id = ? AND igdb_game_id = ?",
+      [userId, game.igdb_game_id]
+    );
+
+    // Add full URL to screenshots
+    const screenshotsWithUrls = screenshots.map((s) => ({
+      ...s,
+      url: `${req.protocol}://${req.get("host")}/uploads/${s.filename}`,
+    }));
+
+    // 4. Merge data
+    // Ensure photos object exists in gameDetails/merged data
+    const mergedGame = {
+      ...game,
+      game_details: gameDetails,
+      user_screenshots: screenshotsWithUrls,
+    };
+
+    // If the user wants screenshots under "Photos" object as requested:
+    // "under Photos, add a screenshots object with user uploaded screenshots"
+    // I will attach it to the response structure clearly.
+
+    sendSuccess(res, {
+      game: mergedGame,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const uploadScreenshot = async (req, res, next) => {
+  try {
+    const { gameId } = req.params;
+    const userId = req.user.userId;
+
+    if (!req.file) {
+      throw new ValidationError("No image file provided");
+    }
+
+    // Verify game exists in library first
+    const [userGame] = await db.query(
+      "SELECT igdb_game_id FROM user_games WHERE user_id = ? AND id = ?",
+      [userId, gameId]
+    );
+
+    if (userGame.length === 0) {
+      // Cleanup uploaded file if game not found
+      // require('fs').unlinkSync(req.file.path); // Optional: good practice
+      throw new NotFoundError("Game not found in your library");
+    }
+
+    const igdbGameId = userGame[0].igdb_game_id;
+
+    // Save to DB
+    const [result] = await db.query(
+      "INSERT INTO user_screenshots (user_id, igdb_game_id, filename) VALUES (?, ?, ?)",
+      [userId, igdbGameId, req.file.filename]
+    );
+
+    const screenshotUrl = `${req.protocol}://${req.get("host")}/uploads/${
+      req.file.filename
+    }`;
+
+    sendSuccess(
+      res,
+      {
+        id: result.insertId,
+        url: screenshotUrl,
+        filename: req.file.filename,
+      },
+      "Screenshot uploaded successfully",
+      201
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getUserLibrary,
   addGameToLibrary,
   updateGameInLibrary,
   deleteGameFromLibrary,
+  getLibraryGameDetails,
+  uploadScreenshot,
 };

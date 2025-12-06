@@ -17,9 +17,14 @@ const searchGames = async (req, res, next) => {
       parseInt(offset)
     );
 
+    // map games to match the structure of library games
+    const gamesWithDetails = games.map((game) => ({
+      game_details: game,
+    }));
+
     sendSuccess(res, {
-      games,
-      count: games.length,
+      games: gamesWithDetails,
+      count: gamesWithDetails.length,
       limit: parseInt(limit),
       offset: parseInt(offset),
     });
@@ -77,9 +82,13 @@ const getPopularGames = async (req, res, next) => {
     const { limit = 20 } = req.query;
     const games = await igdbService.getPopularGames(parseInt(limit));
 
+    const gamesWithDetails = games.map((game) => ({
+      game_details: game,
+    }));
+
     sendSuccess(res, {
-      games,
-      count: games.length,
+      games: gamesWithDetails,
+      count: gamesWithDetails.length,
       limit: parseInt(limit),
     });
   } catch (error) {
@@ -92,6 +101,3 @@ module.exports = {
   getGameById,
   getPopularGames,
 };
-
-
-

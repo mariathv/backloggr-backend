@@ -40,20 +40,18 @@ class IGDBService {
 
       this.accessToken = response.data.access_token;
       // Set expiry with 1 minute buffer
-      this.tokenExpiry =
-        Date.now() + (response.data.expires_in - 60) * 1000;
+      this.tokenExpiry = Date.now() + (response.data.expires_in - 60) * 1000;
       return this.accessToken;
     } catch (error) {
       if (error.response) {
         throw new AppError(
-          `IGDB authentication failed: ${error.response.data?.message || error.message}`,
+          `IGDB authentication failed: ${
+            error.response.data?.message || error.message
+          }`,
           500
         );
       }
-      throw new AppError(
-        `Failed to connect to IGDB: ${error.message}`,
-        503
-      );
+      throw new AppError(`Failed to connect to IGDB: ${error.message}`, 503);
     }
   }
 
@@ -63,7 +61,7 @@ class IGDBService {
 
       const response = await axios.post(
         "https://api.igdb.com/v4/games",
-        `search "${query}"; fields name, cover.url, first_release_date, summary, platforms.name, genres.name, rating, rating_count; limit ${limit}; offset ${offset};`,
+        `search "${query}"; fields name, cover.url, first_release_date, summary, storyline, platforms.name, genres.name, rating, rating_count, screenshots.url, videos.video_id, involved_companies.company.name, involved_companies.developer, involved_companies.publisher; limit ${limit}; offset ${offset};`,
         {
           headers: {
             "Client-ID": this.clientId,
@@ -78,23 +76,20 @@ class IGDBService {
       if (error.response) {
         const status = error.response.status;
         const message = error.response.data?.message || "IGDB API error";
-        
+
         if (status === 401) {
           // Token might be expired, try refreshing
           this.accessToken = null;
           this.tokenExpiry = null;
           return this.searchGames(query, limit, offset);
         }
-        
+
         throw new AppError(
           `IGDB search failed: ${message}`,
           status >= 500 ? 503 : 400
         );
       }
-      throw new AppError(
-        `Failed to search games: ${error.message}`,
-        503
-      );
+      throw new AppError(`Failed to search games: ${error.message}`, 503);
     }
   }
 
@@ -123,23 +118,20 @@ class IGDBService {
       if (error.response) {
         const status = error.response.status;
         const message = error.response.data?.message || "IGDB API error";
-        
+
         if (status === 401) {
           // Token might be expired, try refreshing
           this.accessToken = null;
           this.tokenExpiry = null;
           return this.getGameById(gameId);
         }
-        
+
         throw new AppError(
           `IGDB request failed: ${message}`,
           status >= 500 ? 503 : 400
         );
       }
-      throw new AppError(
-        `Failed to get game details: ${error.message}`,
-        503
-      );
+      throw new AppError(`Failed to get game details: ${error.message}`, 503);
     }
   }
 
@@ -149,7 +141,7 @@ class IGDBService {
 
       const response = await axios.post(
         "https://api.igdb.com/v4/games",
-        `fields name, cover.url, first_release_date, summary, platforms.name, genres.name, rating, rating_count; sort rating_count desc; where rating_count > 100; limit ${limit};`,
+        `fields name, cover.url, first_release_date, summary, storyline, platforms.name, genres.name, rating, rating_count, screenshots.url, videos.video_id, involved_companies.company.name, involved_companies.developer, involved_companies.publisher; sort rating_count desc; where rating_count > 100; limit ${limit};`,
         {
           headers: {
             "Client-ID": this.clientId,
@@ -164,23 +156,20 @@ class IGDBService {
       if (error.response) {
         const status = error.response.status;
         const message = error.response.data?.message || "IGDB API error";
-        
+
         if (status === 401) {
           // Token might be expired, try refreshing
           this.accessToken = null;
           this.tokenExpiry = null;
           return this.getPopularGames(limit);
         }
-        
+
         throw new AppError(
           `IGDB request failed: ${message}`,
           status >= 500 ? 503 : 400
         );
       }
-      throw new AppError(
-        `Failed to get popular games: ${error.message}`,
-        503
-      );
+      throw new AppError(`Failed to get popular games: ${error.message}`, 503);
     }
   }
 
@@ -213,6 +202,3 @@ class IGDBService {
 
 const igdbService = new IGDBService();
 module.exports = igdbService;
-
-
-

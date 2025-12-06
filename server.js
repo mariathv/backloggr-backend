@@ -4,7 +4,10 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 require("dotenv").config();
 
-const { errorHandler, notFoundHandler } = require("./src/middleware/errorHandler");
+const {
+  errorHandler,
+  notFoundHandler,
+} = require("./src/middleware/errorHandler");
 const { sendSuccess } = require("./src/utils/response");
 const igdbService = require("./src/services/igdbService");
 
@@ -12,10 +15,13 @@ const app = express();
 
 // Middleware
 app.use(morgan("dev"));
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: false })); // Allow cross-origin for static assets
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files
+app.use("/uploads", express.static("uploads"));
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -60,7 +66,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Backloggr API running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-  
+
   // Check IGDB configuration on startup
   igdbService.healthCheck().then((health) => {
     if (health.status === "ok") {
