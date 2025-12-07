@@ -15,7 +15,9 @@ const register = async (req, res, next) => {
     );
 
     if (existing.length > 0) {
-      throw new ConflictError("User with this email or username already exists");
+      throw new ConflictError(
+        "User with this email or username already exists"
+      );
     }
 
     // Hash password
@@ -95,11 +97,33 @@ const login = async (req, res, next) => {
     next(error);
   }
 };
+const me = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
 
+    // Fetch user details from DB
+    const [users] = await db.query(
+      "SELECT id, username, email FROM users WHERE id = ?",
+      [userId]
+    );
+
+    if (users.length === 0) {
+      throw new AuthenticationError("User not found");
+    }
+
+    const user = users[0];
+
+    sendSuccess(
+      res,
+      { user },
+      "Authenticated user details fetched successfully"
+    );
+  } catch (error) {
+    next(error);
+  }
+};
 module.exports = {
   register,
   login,
+  me,
 };
-
-
-

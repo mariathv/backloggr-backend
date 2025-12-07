@@ -382,15 +382,19 @@ const getLibraryGameDetails = async (req, res, next) => {
     next(error);
   }
 };
-
 const uploadScreenshot = async (req, res, next) => {
   try {
+    console.log("Upload Screenshot called"); // Log function entry
     const { gameId } = req.params;
     const userId = req.user.userId;
+    console.log("User ID:", userId, "Game ID:", gameId);
 
     if (!req.file) {
+      console.log("No file received"); // Log missing file
       throw new ValidationError("No image file provided");
     }
+
+    console.log("File received:", req.file.filename, req.file.path);
 
     // Verify game exists in library first
     const [userGame] = await db.query(
@@ -398,9 +402,10 @@ const uploadScreenshot = async (req, res, next) => {
       [userId, gameId]
     );
 
+    console.log("User game query result:", userGame);
+
     if (userGame.length === 0) {
-      // Cleanup uploaded file if game not found
-      // require('fs').unlinkSync(req.file.path); // Optional: good practice
+      console.log("Game not found in user's library");
       throw new NotFoundError("Game not found in your library");
     }
 
@@ -411,6 +416,8 @@ const uploadScreenshot = async (req, res, next) => {
       "INSERT INTO user_screenshots (user_id, igdb_game_id, filename) VALUES (?, ?, ?)",
       [userId, igdbGameId, req.file.filename]
     );
+
+    console.log("Screenshot saved to DB with ID:", result.insertId);
 
     const screenshotUrl = `${req.protocol}://${req.get("host")}/uploads/${
       req.file.filename
@@ -427,6 +434,7 @@ const uploadScreenshot = async (req, res, next) => {
       201
     );
   } catch (error) {
+    console.error("Error in uploadScreenshot:", error);
     next(error);
   }
 };

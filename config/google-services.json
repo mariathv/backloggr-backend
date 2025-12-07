@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "132207254368",
+    "project_id": "backloggr-71ce7",
+    "storage_bucket": "backloggr-71ce7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:132207254368:android:3469d8e02e860bd9fd5c05",
+        "android_client_info": {
+          "package_name": "com.project.backloggr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCon8f4EkQ-Dm8HvI7FD5car0YSPIXtmPY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
